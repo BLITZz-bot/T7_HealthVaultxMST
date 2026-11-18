@@ -286,7 +286,39 @@ CREATE TABLE medical_records (
 
 ---
 
-## 📁 8. Repository Structure
+## 📷 8. On-Device OCR Paper Scanner & Clinical Parsing
+
+Designed specifically to digitize handwritten vitals recorded during rural home visits without manual re-typing:
+
+* **100% Offline Optical Character Recognition:** Powered by Google ML Kit (`google_mlkit_text_recognition`) running natively on mobile hardware without requiring cloud APIs or internet connection.
+* **Intelligent Clinical Regex Parser:** Automatically detects and extracts:
+  * **Blood Pressure:** Identifies `120/80`, `130 / 85 mmHg`, or standalone systolic/diastolic readings.
+  * **Pulse / Heart Rate:** Detects `PR: 72`, `Pulse 80 bpm`, `HR 76`.
+  * **Oxygen Saturation (SpO₂):** Extracts `SpO2 98%`, `96% O2`.
+  * **Temperature:** Extracts Celsius or Fahrenheit readings (`98.6 F`, `37.0 C`).
+  * **Respiration Rate:** Parses `RR 18`, `Resp 20/min`.
+  * **Blood Sugar:** Differentiates Fasting (`BSF: 95`) and Postprandial (`PP: 140`).
+  * **Clinical Notes:** Extracts observations and physician instructions.
+* **Review & Verification Screen:** ASHA workers can review, adjust, or verify extracted values before saving. Saved records are tagged with `entry_source: 'scan'`.
+
+---
+
+## 💻 9. PHC Admin Web Dashboard & Patient Health History Timeline
+
+A modern web portal for Primary Health Centre (PHC) medical officers and supervisors:
+
+* **Family Group View & Flat Table View (`/patients`):** Groups citizens into households with family heads, house numbers, ABHA IDs, mobile numbers, and clinical risk badges.
+* **Multi-Tier Filtering:** Instant search by patient, family head, or ABHA ID, filtered by Village/Ward, ASHA worker, clinical risk flags, and data source (📷 Scan, ✏️ Manual, ☁️ Cloud Sync).
+* **🩺 Patient Health History & Vitals Timeline Modal:**
+  * Displays a full chronological timeline of all visits for that citizen from Supabase `vitals`.
+  * Exact timestamps and relative dates (`2 hours ago`).
+  * Source badges differentiating paper OCR scans from manual entries.
+  * 8-point vital grid with clinical alert highlighting for hypertension ($BP \ge 140/90$) and hypoxia ($SpO_2 < 95\%$).
+* **Realtime Synchronization:** Powered by Supabase Realtime WebSockets — entries saved by ASHA workers in the field appear instantly on the dashboard without manual page refreshes.
+
+---
+
+## 📁 10. Repository Structure
 
 ```
 T7_HealthVault/
@@ -307,6 +339,8 @@ T7_HealthVault/
 │   │   │   ├── language_setup_screen.dart # First-Run Onboarding Setup
 │   │   │   └── login_screen.dart       # Secure Dual-Role Auth & Language Switcher
 │   │   ├── services/
+│   │   │   ├── ocr_vital_parser_service.dart # Google ML Kit On-Device OCR Paper Scanner
+│   │   │   ├── cloud_sync_service.dart # Offline SQLite ↔ Supabase Two-Way Sync
 │   │   │   ├── language_service.dart   # 22 Languages Management & Pack Downloader
 │   │   │   ├── news2_delta_service.dart # Royal College NEWS2 & DELTA Scoring
 │   │   │   ├── sepsis_inference_service.dart # ONNX Runtime C++ Sepsis Engine
@@ -323,16 +357,27 @@ T7_HealthVault/
 │   ├── requirements.txt                # Python ML Dependencies
 │   └── README.md                       # Model Pipeline Documentation
 │
-├── phc_admin/                          # PHC Admin Web Panel (React + Vite, deployed on Vercel)
-│   ├── supabase/migrations/            # Shared Supabase schema + RLS for app ↔ panel sync
-│   └── README.md                       # Setup, Vercel deploy & Supabase connection guide
+├── phc_admin/                          # PHC Admin Web Panel (React + Vite + Supabase)
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── PatientsPage.tsx        # Patient Records, Family View & Health History Modal
+│   │   │   ├── AlertsPage.tsx          # Real-Time Risk Alerts & Triage
+│   │   │   ├── AshaWorkersPage.tsx     # Workforce Management
+│   │   │   └── ...
+│   │   └── backend/
+│   │       ├── supabaseRepository.ts   # Live Supabase CRUD & Realtime Queries
+│   │       └── types.ts                # PatientMember, PatientVitals, and Alerts Types
+│   ├── supabase/
+│   │   ├── functions/fetch-worker-data # Edge Function for Two-Way Device Sync
+│   │   └── migrations/                 # 0001_init.sql through 0007_add_entry_source.sql
+│   └── README.md                       # Admin Panel Documentation
 │
 └── README.md                           # Main Project Documentation (This File)
 ```
 
 ---
 
-## 🚀 9. Build & Verification Instructions
+## 🚀 11. Build & Verification Instructions
 
 ### 1. Code Quality & Test Suite
 ```bash
