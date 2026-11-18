@@ -9,6 +9,8 @@ import type {
   District,
   Household,
   LiveTable,
+  PatientMember,
+  PatientVitals,
   Referral,
   State,
   VisitTask,
@@ -211,6 +213,133 @@ export const supabaseRepository: PhcRepository = {
         updatedAt: String(r.updated_at),
       }),
     );
+  },
+
+  async listPatients(phcId) {
+    const sb = getSupabase();
+    const { data: memberRows, error: mErr } = await sb
+      .from('members')
+      .select(`
+        id,
+        household_id,
+        full_name,
+        age,
+        gender,
+        relation_to_head,
+        abha_id,
+        mobile_number,
+        is_pregnant,
+        is_high_risk_pregnancy,
+        is_lactating,
+        has_chronic_condition,
+        chronic_notes,
+        created_at,
+        households (
+          id,
+          head_name,
+          house_number,
+          village_id,
+          asha_id,
+          villages ( name ),
+          profiles ( full_name, phone )
+        )
+      `)
+      .eq('phc_id', phcId)
+      .is('deleted_at', null)
+      .order('full_name')
+      .limit(1000);
+
+    if (mErr) {
+      console.warn('Error fetching members from Supabase:', mErr);
+      return [];
+    }
+
+    if (!memberRows || memberRows.length === 0) return [];
+
+    const memberIds = memberRows.map((m: any) => m.id);
+    const { data: vitalsRows } = await sb
+      .from('vitals')
+      .select('*')
+      .in('member_id', memberIds)
+      .order('recorded_at', { ascending: false });
+
+    const latestVitalsMap = new Map<string, any>();
+    if (vitalsRows) {
+      for (const v of vitalsRows) {
+        if (!latestVitalsMap.has(v.member_id)) {
+          latestVitalsMap.set(v.member_id, v);
+        }
+      }
+    }
+
+    return memberRows.map((m: any): PatientMember => {
+      const h = Array.isArray(m.households) ? m.households[0] : m.households;
+      const v = latestVitalsMap.get(m.id);
+      
+      const vVillage = h?.villages ? (Array.isArray(h.villages) ? h.villages[0]?.name : h.villages?.name) : null;
+      const vAsha = h?.profiles ? (Array.isArray(h.profiles) ? h.profiles[0] : h.profiles) : null;
+
+      return {
+        id: String(m.id),
+        householdId: String(m.household_id),
+        fullName: String(m.full_name),
+        age: num(m.age),
+        gender: str(m.gender),
+        relationToHead: str(m.relation_to_head),
+        abhaId: str(m.abha_id),
+        mobileNumber: str(m.mobile_number),
+        isPregnant: Boolean(m.is_pregnant),
+        isHighRisk: Boolean(m.is_high_risk_pregnancy),
+        isLactating: Boolean(m.is_lactating),
+        hasChronic: Boolean(m.has_chronic_condition),
+        chronicNotes: str(m.chronic_notes),
+        headName: str(h?.head_name) ?? 'Unknown Family',
+        houseNumber: str(h?.house_number),
+        villageName: str(vVillage),
+        ashaName: str(vAsha?.full_name),
+        ashaPhone: str(vAsha?.phone),
+        latestVitals: v ? {
+          bpSystolic: num(v.bp_systolic),
+          bpDiastolic: num(v.bp_diastolic),
+          pulseRate: num(v.pulse_rate),
+          spo2: num(v.spo2),
+          temperatureC: num(v.temperature_c),
+          respiratoryRate: num(v.respiratory_rate),
+          bloodSugarFasting: num(v.blood_sugar_fasting),
+          bloodSugarPostprandial: num(v.blood_sugar_postprandial),
+          entrySource: str(v.entry_source),
+          recordedAt: String(v.recorded_at || v.created_at || new Date().toISOString()),
+          notes: str(v.notes),
+        } : null,
+        updatedAt: String(m.created_at || new Date().toISOString()),
+      };
+    });
+  },
+
+  async getPatientVitalsHistory(memberId: string): Promise<PatientVitals[]> {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from('vitals')
+      .select('*')
+      .eq('member_id', memberId)
+      .order('recorded_at', { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((v: any): PatientVitals => ({
+      id: String(v.id),
+      bpSystolic: num(v.bp_systolic),
+      bpDiastolic: num(v.bp_diastolic),
+      pulseRate: num(v.pulse_rate),
+      spo2: num(v.spo2),
+      temperatureC: num(v.temperature_c),
+      respiratoryRate: num(v.respiratory_rate),
+      bloodSugarFasting: num(v.blood_sugar_fasting),
+      bloodSugarPostprandial: num(v.blood_sugar_postprandial),
+      entrySource: str(v.entry_source) || 'manual',
+      recordedAt: String(v.recorded_at || v.created_at || new Date().toISOString()),
+      notes: str(v.notes),
+    }));
   },
 
   async listAlerts(phcId, status) {

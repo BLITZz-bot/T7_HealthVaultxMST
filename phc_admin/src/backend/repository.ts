@@ -9,6 +9,8 @@ import type {
   LiveTable,
   NewAshaWorker,
   NewVisitTask,
+  PatientMember,
+  PatientVitals,
   Referral,
   ReferralStatus,
   State,
@@ -31,6 +33,8 @@ export interface PhcRepository {
   toggleWorkerStatus(phcId: string, workerId: string, isActive: boolean): Promise<void>;
   deleteWorker(phcId: string, workerId: string): Promise<void>;
   listHouseholds(phcId: string): Promise<Household[]>;
+  listPatients(phcId: string): Promise<PatientMember[]>;
+  getPatientVitalsHistory(memberId: string): Promise<PatientVitals[]>;
 
   listAlerts(phcId: string, status: AlertStatus): Promise<Alert[]>;
   /** Changes only the alert's own status — never the patient record. */

@@ -59,6 +59,44 @@ export interface Household {
   updatedAt: string;
 }
 
+export interface PatientVitals {
+  id?: string;
+  bpSystolic: number | null;
+  bpDiastolic: number | null;
+  pulseRate: number | null;
+  spo2: number | null;
+  temperatureC: number | null;
+  respiratoryRate: number | null;
+  bloodSugarFasting: number | null;
+  bloodSugarPostprandial: number | null;
+  entrySource: string | null;
+  recordedAt: string;
+  notes: string | null;
+}
+
+export interface PatientMember {
+  id: string;
+  householdId: string;
+  fullName: string;
+  age: number | null;
+  gender: string | null;
+  relationToHead: string | null;
+  abhaId: string | null;
+  mobileNumber: string | null;
+  isPregnant: boolean;
+  isHighRisk: boolean;
+  isLactating: boolean;
+  hasChronic: boolean;
+  chronicNotes: string | null;
+  headName: string;
+  houseNumber: string | null;
+  villageName: string | null;
+  ashaName: string | null;
+  ashaPhone: string | null;
+  latestVitals: PatientVitals | null;
+  updatedAt: string;
+}
+
 export interface State {
   id: string;
   name: string;
@@ -131,4 +169,4 @@ export interface NewVisitTask {
 }
 
 /** Tables the UI can receive live-change notifications for. */
-export type LiveTable = 'alerts' | 'referrals' | 'visit_tasks' | 'households' | 'profiles' | 'states' | 'districts' | 'villages';
+export type LiveTable = 'alerts' | 'referrals' | 'visit_tasks' | 'households' | 'profiles' | 'states' | 'districts' | 'villages' | 'members' | 'vitals';

@@ -650,7 +650,7 @@ class CloudSyncService {
           'spo2': v['spo2'] ?? 0,
           'respiratory_rate': v['respiratory_rate'] ?? 0,
           'notes': v['notes'] ?? '',
-          'entry_source': 'cloud_sync',
+          'entry_source': v['entry_source']?.toString() ?? 'cloud_sync',
           'device_id': v['device_id'] ?? '',
           'recorded_at': v['recorded_at']?.toString() ?? DateTime.now().toIso8601String(),
           'cloud_id': cloudVId,

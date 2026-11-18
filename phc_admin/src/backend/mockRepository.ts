@@ -91,6 +91,17 @@ export const mockRepository: PhcRepository = {
     }
   },
 
+  async listPatients(phcId) {
+    assertPhc(phcId);
+    await delay();
+    return [];
+  },
+
+  async getPatientVitalsHistory(_memberId) {
+    await delay();
+    return [];
+  },
+
   async listHouseholds(phcId) {
     assertPhc(phcId);
     await delay();

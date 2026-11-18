@@ -51,6 +51,7 @@ dependencies:
   web3dart: ^3.0.3
   convert: ^3.1.2
   pointycastle: ^4.0.0
+  google_mlkit_text_recognition: ^0.13.1
 
 dev_dependencies:
   flutter_test:

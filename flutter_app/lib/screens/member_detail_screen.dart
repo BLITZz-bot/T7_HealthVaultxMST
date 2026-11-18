@@ -8,6 +8,8 @@ import '../services/sepsis_inference_service.dart';
 import '../services/language_service.dart';
 import '../services/on_device_llm_service.dart';
 import '../services/blockchain_service.dart';
+import '../services/ocr_vital_parser_service.dart';
+import 'package:image_picker/image_picker.dart';
 import 'qr_screen.dart';
 import '../widgets/language_switcher_widget.dart';
 import '../widgets/qwen_ai_chat_modal.dart';
@@ -525,7 +527,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
   // Add Medical Record Dialog
   // ─────────────────────────────────────────────────────────────────────
   void _showAddRecordDialog() {
-    String entrySource = 'manual'; // 'manual' or 'device'
+    String entrySource = 'manual'; // 'manual' or 'scan'
     final systolicCtrl = TextEditingController();
     final diastolicCtrl = TextEditingController();
     final bsfCtrl = TextEditingController();
@@ -536,6 +538,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
     final rrCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     bool isSaving = false;
+
+    // ── Scan state ──
+    String? scannedImagePath;
+    bool isScanning = false;
+    String scanStatus = '';      // feedback message shown below scan buttons
+    bool scanDone = false;       // true once OCR completed and fields filled
 
     showDialog(
       context: context,
@@ -593,26 +601,26 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
                         ),
                         Expanded(
                           child: GestureDetector(
-                            onTap: () => setModalState(() => entrySource = 'device'),
+                            onTap: () => setModalState(() => entrySource = 'scan'),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               decoration: BoxDecoration(
-                                color: entrySource == 'device' ? const Color(0xFF00796B) : Colors.transparent,
+                                color: entrySource == 'scan' ? const Color(0xFF00796B) : Colors.transparent,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.usb,
+                                  Icon(Icons.document_scanner_rounded,
                                     size: 18,
-                                    color: entrySource == 'device' ? Colors.white : Colors.grey.shade700,
+                                    color: entrySource == 'scan' ? Colors.white : Colors.grey.shade700,
                                   ),
                                   const SizedBox(width: 6),
-                                  Text('Device (USB)',
+                                  Text('Scan Paper',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
-                                      color: entrySource == 'device' ? Colors.white : Colors.grey.shade800,
+                                      color: entrySource == 'scan' ? Colors.white : Colors.grey.shade800,
                                     ),
                                   ),
                                 ],
@@ -648,45 +656,260 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
                     ),
                   ],
 
-                  // ── Device Stub ──
-                  if (entrySource == 'device') ...[
+                  // ── Camera / Scan Section ──
+                  if (entrySource == 'scan') ...[
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.shade200),
+                        color: const Color(0xFFE0F2F1),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF80CBC4)),
                       ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.usb, size: 40, color: Colors.orange.shade700),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Device Connection',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade800, fontSize: 15),
+                          // ── Header ──
+                          Row(
+                            children: [
+                              const Icon(Icons.document_scanner_rounded, color: Color(0xFF00796B), size: 22),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Scan Handwritten Record',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: Color(0xFF004D40),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Text(
-                            'Connect the health monitoring device via USB OTG to begin reading vitals automatically.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.orange.shade700, fontSize: 13),
+                            'Take a photo of the handwritten vitals paper. The app will read the values and fill the fields automatically.',
+                            style: TextStyle(fontSize: 12, color: Colors.teal.shade700),
                           ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange.shade700,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          const SizedBox(height: 14),
+
+                          // ── Camera / Gallery buttons ──
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF00796B),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                  icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                                  label: const Text('Camera', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  onPressed: isScanning
+                                      ? null
+                                      : () async {
+                                          final picked = await OcrVitalParserService.pickImageForScan(
+                                            ctx,
+                                            source: ImageSource.camera,
+                                          );
+                                          if (picked == null) return;
+                                          setModalState(() {
+                                            scannedImagePath = picked['path'] as String;
+                                            scanStatus = 'Image captured. Tap "Extract Vitals" to scan.';
+                                            scanDone = false;
+                                          });
+                                        },
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF00796B),
+                                    side: const BorderSide(color: Color(0xFF00796B)),
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                  icon: const Icon(Icons.photo_library_rounded, size: 18),
+                                  label: const Text('Gallery', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  onPressed: isScanning
+                                      ? null
+                                      : () async {
+                                          final picked = await OcrVitalParserService.pickImageForScan(
+                                            ctx,
+                                            source: ImageSource.gallery,
+                                          );
+                                          if (picked == null) return;
+                                          setModalState(() {
+                                            scannedImagePath = picked['path'] as String;
+                                            scanStatus = 'Image selected. Tap "Extract Vitals" to scan.';
+                                            scanDone = false;
+                                          });
+                                        },
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          // ── Status / Feedback ──
+                          if (scanStatus.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: scanDone ? Colors.green.shade50 : Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: scanDone ? Colors.green.shade300 : Colors.teal.shade200,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    scanDone ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                                    size: 16,
+                                    color: scanDone ? Colors.green.shade700 : Colors.teal.shade700,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      scanStatus,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: scanDone ? Colors.green.shade800 : Colors.teal.shade800,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            onPressed: () {
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(content: Text('Device connection not yet implemented. Use Manual Entry for now.')),
-                              );
-                            },
-                            icon: const Icon(Icons.cable),
-                            label: const Text('Connect Device'),
+                          ],
+
+                          // ── Extract Vitals Button ──
+                          if (scannedImagePath != null) ...[
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                icon: isScanning
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Icon(Icons.search_rounded, size: 18),
+                                label: Text(
+                                  isScanning ? 'Scanning…' : '🔍  Extract Vitals',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                                onPressed: isScanning
+                                    ? null
+                                    : () async {
+                                        setModalState(() {
+                                          isScanning = true;
+                                          scanStatus = 'Running OCR — please wait…';
+                                        });
+
+                                        final Map<String, String> parsed =
+                                            await OcrVitalParserService.extractVitalsFromImagePath(
+                                          scannedImagePath!,
+                                        );
+
+                                        // Fill controllers with extracted values
+                                        if (parsed.containsKey('systolic'))  systolicCtrl.text  = parsed['systolic']!;
+                                        if (parsed.containsKey('diastolic')) diastolicCtrl.text = parsed['diastolic']!;
+                                        if (parsed.containsKey('pulse'))     pulseCtrl.text     = parsed['pulse']!;
+                                        if (parsed.containsKey('spo2'))      spo2Ctrl.text      = parsed['spo2']!;
+                                        if (parsed.containsKey('rr'))        rrCtrl.text        = parsed['rr']!;
+                                        if (parsed.containsKey('temperature')) tempCtrl.text    = parsed['temperature']!;
+                                        if (parsed.containsKey('bsf'))       bsfCtrl.text       = parsed['bsf']!;
+                                        if (parsed.containsKey('bspp'))      bsppCtrl.text      = parsed['bspp']!;
+                                        if (parsed.containsKey('notes_hint') && notesCtrl.text.isEmpty) {
+                                          notesCtrl.text = parsed['notes_hint']!;
+                                        }
+
+                                        final filledCount = parsed.keys
+                                            .where((k) => k != 'notes_hint')
+                                            .length;
+
+                                        setModalState(() {
+                                          isScanning = false;
+                                          scanDone = filledCount > 0;
+                                          scanStatus = filledCount > 0
+                                              ? '✅ $filledCount field(s) filled from scan. Review below and save.'
+                                              : '⚠️ Could not read values clearly. Please fill fields manually.';
+                                          // Switch to manual view so ASHA can review/edit filled fields
+                                          if (filledCount > 0) entrySource = 'scan_review';
+                                        });
+                                      },
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // ── Scan Review: show filled fields for editing ──
+                  if (entrySource == 'scan_review') ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Scan complete — review & edit values before saving.',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => setModalState(() {
+                              entrySource = 'scan';
+                              scanDone = false;
+                              scannedImagePath = null;
+                              scanStatus = '';
+                            }),
+                            child: const Text('Re-scan', style: TextStyle(fontSize: 12)),
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _vitalField(systolicCtrl, LanguageService.tr('bp_systolic'), Icons.favorite),
+                    _vitalField(diastolicCtrl, LanguageService.tr('bp_diastolic'), Icons.favorite_border),
+                    _vitalField(pulseCtrl, LanguageService.tr('pulse_rate'), Icons.monitor_heart_outlined),
+                    _vitalField(spo2Ctrl, LanguageService.tr('spo2'), Icons.air),
+                    _vitalField(rrCtrl, LanguageService.tr('respiratory_rate'), Icons.waves),
+                    _vitalField(tempCtrl, LanguageService.tr('temperature'), Icons.thermostat),
+                    _vitalField(bsfCtrl, LanguageService.tr('blood_sugar_fasting'), Icons.water_drop),
+                    _vitalField(bsppCtrl, LanguageService.tr('blood_sugar_pp'), Icons.water_drop_outlined),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: notesCtrl,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        labelText: LanguageService.tr('clinical_notes'),
+                        prefixIcon: const Icon(Icons.notes),
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
                     ),
                   ],
@@ -696,7 +919,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text(LanguageService.tr('cancel'))),
-            if (entrySource == 'manual')
+            if (entrySource == 'manual' || entrySource == 'scan_review')
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00796B),
@@ -716,7 +939,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
                     bloodSugarFasting: double.tryParse(bsfCtrl.text),
                     bloodSugarPostprandial: double.tryParse(bsppCtrl.text),
                     notes: notesCtrl.text,
-                    entrySource: 'manual',
+                    entrySource: entrySource == 'scan_review' ? 'scan' : 'manual',
                   );
                   if (!mounted || !context.mounted) return;
                   Navigator.pop(ctx);
@@ -979,8 +1202,24 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
 
   Widget _buildRecordCard(dynamic r) {
     final flag = r['flag'] as String? ?? 'normal';
-    final isDevice = r['entry_source'] == 'device';
+    final entrySource = r['entry_source'] as String? ?? 'manual';
+    final isScan = entrySource == 'scan';
+    final isDevice = entrySource == 'device'; // legacy records
     final dateStr = _formatDate(r['recorded_at']);
+
+    // ── Source icon and color ──
+    IconData sourceIcon = Icons.edit_note;
+    Color sourceColor = Colors.teal;
+    String sourceLabel = 'Manual';
+    if (isScan) {
+      sourceIcon = Icons.document_scanner_rounded;
+      sourceColor = Colors.purple;
+      sourceLabel = 'Scan';
+    } else if (isDevice) {
+      sourceIcon = Icons.usb;
+      sourceColor = Colors.blueAccent;
+      sourceLabel = 'Device';
+    }
 
     return FutureBuilder<Map<String, dynamic>?>(
       future: BlockchainService.getChainStatus(r['id'] as int),
@@ -1000,9 +1239,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
             Row(
               children: [
                 Icon(
-                  isDevice ? Icons.usb : Icons.edit_note,
+                  sourceIcon,
                   size: 16,
-                  color: isDevice ? Colors.blueAccent : Colors.teal,
+                  color: sourceColor,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
@@ -1035,15 +1274,15 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
                   padding: EdgeInsets.zero,
                   labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                   label: Text(
-                    isDevice ? 'Device' : 'Manual',
+                    sourceLabel,
                     style: TextStyle(
                       fontSize: 10,
-                      color: isDevice ? Colors.blueAccent : Colors.teal,
+                      color: sourceColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  backgroundColor: isDevice ? Colors.blue.shade50 : Colors.teal.shade50,
-                  side: BorderSide(color: isDevice ? Colors.blueAccent.withValues(alpha: 0.4) : Colors.teal.withValues(alpha: 0.4)),
+                  backgroundColor: sourceColor.withValues(alpha: 0.08),
+                  side: BorderSide(color: sourceColor.withValues(alpha: 0.4)),
                 ),
                 if (isSynced || isPending) ...[
                   const SizedBox(width: 6),

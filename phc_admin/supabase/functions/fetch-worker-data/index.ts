@@ -161,6 +161,7 @@ serve(async (req) => {
         sepsis_risk: v.sepsis_risk || null,
         notes: v.notes || null,
         device_id: v.device_id || null,
+        entry_source: v.entry_source || 'manual',
         recorded_at: v.recorded_at || new Date().toISOString(),
       }));
 
