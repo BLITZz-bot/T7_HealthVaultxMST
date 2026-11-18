@@ -5,7 +5,7 @@
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary%20%2F%20All%20Rights%20Reserved-red.svg?style=for-the-badge)](LICENSE)
 
 **Developer & Author:** M M Bharath  
-**Version:** 2.2.0 (OCR Clinical Scanner, Live EHR & Cloud Sync Edition)  
+
 **Direct APK Download:** [👉 Click here to download latest `app-release.apk`](https://github.com/BLITZz-bot/T7-HealthVault/releases/latest/download/app-release.apk)  
 **Releases Page:** [View all GitHub Releases](https://github.com/BLITZz-bot/T7-HealthVault/releases)
 
