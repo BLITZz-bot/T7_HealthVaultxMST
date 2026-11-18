@@ -182,9 +182,6 @@ class BlockchainService {
           // Visit will be retried on next sync if needed.
         }
 
-        final visitJson = visitResponse.statusCode == 200
-            ? jsonDecode(visitResponse.body)
-            : {};
 
         await db.update(
           'chain_outbox',
