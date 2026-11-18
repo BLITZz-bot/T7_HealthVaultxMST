@@ -39,6 +39,17 @@ jobs:
           cd flutter_app
           flutter pub get
 
+      - name: Patch onnxruntime compileSdkVersion (33 → 36)
+        run: |
+          ONNX_BUILD=$(find "$HOME/.pub-cache" -path "*/onnxruntime-*/android/build.gradle" 2>/dev/null | head -1)
+          if [ -n "$ONNX_BUILD" ]; then
+            echo "Patching: $ONNX_BUILD"
+            sed -i 's/compileSdkVersion 33/compileSdkVersion 36/g' "$ONNX_BUILD"
+            grep "compileSdkVersion" "$ONNX_BUILD"
+          else
+            echo "onnxruntime build.gradle not found — skipping patch"
+          fi
+
       - name: Determine Release Tag
         id: vars
         run: |
