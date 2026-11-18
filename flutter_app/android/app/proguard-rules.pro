@@ -46,3 +46,10 @@
 -dontwarn javax.annotation.**
 -dontwarn org.checkerframework.**
 -dontwarn sun.misc.**
+
+# Google ML Kit Text Recognition
+-dontwarn com.google.mlkit.vision.text.**
+-dontwarn com.google_mlkit_text_recognition.**
+-keep class com.google.mlkit.vision.text.** { *; }
+-keep class com.google_mlkit_text_recognition.** { *; }
+
