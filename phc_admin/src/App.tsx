@@ -12,6 +12,7 @@ import { TasksPage } from '@/pages/TasksPage';
 import { WorkersPage } from '@/pages/WorkersPage';
 import { RewardsPage } from '@/pages/RewardsPage';
 import { JurisdictionsPage } from '@/pages/JurisdictionsPage';
+import { PatientsPage } from '@/pages/PatientsPage';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
               <Route path="workers" element={<WorkersPage />} />
               <Route path="jurisdictions" element={<JurisdictionsPage />} />
               <Route path="households" element={<HouseholdsPage />} />
+              <Route path="patients" element={<PatientsPage />} />
               <Route path="rewards" element={<RewardsPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="settings" element={<SettingsPage />} />

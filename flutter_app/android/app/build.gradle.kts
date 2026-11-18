@@ -10,6 +10,11 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "28.2.13676358" // Required for jni & llm_llamacpp
 
+    // ML Kit: prevent compression of model files
+    androidResources {
+        noCompress += listOf("tflite", "lite")
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
+  Activity,
   BarChart3,
   ClipboardList,
   HeartPulse,
@@ -28,6 +29,7 @@ const NAV = [
   { to: '/workers', label: 'ASHA workers', icon: Users },
   { to: '/jurisdictions', label: 'Master Jurisdictions', icon: MapPin },
   { to: '/households', label: 'Households', icon: Home },
+  { to: '/patients', label: 'Patient Records', icon: Activity },
   { to: '/rewards', label: 'CareCoins', icon: Coins },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/settings', label: 'Settings', icon: Settings },
