@@ -1,178 +1,90 @@
-# T7 HealthVault — PHC Admin Panel (web)
+# T7 HealthVault — PHC Admin Panel (Web Dashboard)
 
-Web dashboard for PHC supervisors / medical officers. It shares one Supabase
-database with the ASHA Flutter app (`../flutter_app`), and is deployed on Vercel.
+Modern web dashboard for Primary Health Centre (PHC) supervisors, medical officers, and administrators. Built with **React 19**, **Vite**, **TypeScript**, and **Tailwind CSS**, connected directly to **Supabase** with live real-time updates.
 
-> **Current state: skeleton.** It runs with a **dummy login and in-memory demo
-> data** (`VITE_BACKEND=mock`). No Supabase project is needed yet. The Supabase
-> code paths and schema are written but not connected. See
-> [Connecting Supabase later](#connecting-supabase-later).
+---
 
-## How data flows
+## 🌟 Features & Pages
+
+### 1. 👥 Patient Records & Family Directory (`/patients`)
+* **Family Group View:** Groups citizens into household units with expandable family cards, head of family details, and house numbers.
+* **All Patients Table View:** Flat, sortable table showing patient demographics, ABHA IDs, mobile numbers, and clinical flags.
+* **Multi-Tier Filtering & Search:**
+  * Real-time search across patient name, ABHA ID, family head, or mobile.
+  * Jurisdiction filter by Village / Ward.
+  * Assigned ASHA worker filter.
+  * Clinical condition filter: ⚠️ High Risk, 🤰 Pregnant Mothers (ANC), 💊 Chronic Conditions (NCDs), and With Vitals.
+  * Entry source filter: 📷 Scanned Sheet (OCR), ✏️ Field Manual, ☁️ Cloud Synced.
+* **🩺 Interactive Patient Health History Timeline Modal:**
+  * Clicking **"History"** on any patient opens their complete chronological timeline of visits from Supabase `vitals`.
+  * Visual timeline with visit timestamps and relative time.
+  * Source badges differentiating paper OCR scans from manual entries.
+  * Complete 8-point clinical vitals grid: BP (with hypertensive alert coloring), Pulse Rate, SpO₂ (hypoxia alert if <95%), Temperature, Respiratory Rate, Fasting Sugar, and Postprandial Sugar.
+  * Doctor and ASHA worker clinical notes.
+
+### 2. 🚨 Risk Alerts (`/alerts`)
+* Auto-generated from the ASHA mobile app's **NEWS2 Engine** and **PhysioNet Sepsis ONNX Model**.
+* Categorized by severity: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`.
+* Shows predicted risk metrics: NEWS2 score (0–20) and Sepsis risk probability (0%–100%).
+* Workflow actions for medical officers: **Acknowledge**, **Resolve**, or **Reopen**.
+
+### 3. 👩‍⚕️ ASHA Workforce Management (`/workers`)
+* Directory of registered ASHA workers, assigned jurisdictions, assigned households count, and last sync timestamps.
+* Onboard new ASHA workers directly from the web panel (syncs to mobile apps on next cloud refresh).
+
+### 4. 🏥 Emergency Referrals (`/referrals`) & 📋 Visit Tasks (`/tasks`)
+* Track hospital referrals, facility assignments, and follow-up deadlines.
+* Assign field follow-up tasks to specific ASHA workers.
+
+---
+
+## 🔄 Architecture & Data Flow
 
 ```
- ┌──────────────────────┐        upsert on sync          ┌───────────────────────┐        read / triage       ┌─────────────────────┐
- │  ASHA Flutter app    │ ─────────────────────────────▶ │                       │ ◀───────────────────────── │  PHC Admin Panel    │
- │  (offline-first,     │  households, members, vitals,  │  Supabase             │   alerts, referrals,       │  (this repo, Vercel)│
- │   SQLite on device)  │  alerts, referrals             │  Postgres + Auth +    │   households, workers      │                     │
+ ┌──────────────────────┐        push on sync            ┌───────────────────────┐        read / triage       ┌─────────────────────┐
+ │  ASHA Flutter App    │ ─────────────────────────────▶ │                       │ ◀───────────────────────── │  PHC Admin Panel    │
+ │  (offline-first,     │  households, members, vitals   │  Supabase             │   alerts, referrals,       │  (React + Vite)     │
+ │   SQLite on device)  │  (with entry_source: 'scan')   │  Postgres + Auth +    │   households, patients     │                     │
  │                      │ ◀───────────────────────────── │  Row Level Security   │ ─────────────────────────▶ │                     │
- └──────────────────────┘   pull on sync (+ realtime):   │  + Realtime           │   writes: alert status,    └─────────────────────┘
-                            visit_tasks, alert/referral  └───────────────────────┘   referral status, tasks
-                            status changed by the PHC
+ └──────────────────────┘   pull on sync (+ realtime):   │  + Realtime           │   writes: triage status,   └─────────────────────┘
+                            profiles, tasks, updates     └───────────────────────┘   worker onboarding, tasks
 ```
 
-- There is **no custom backend** in between. Both clients talk to Supabase directly with
-  the public anon key. **Row Level Security is the security boundary.**
-- Every row carries `phc_id`. A supervisor only ever sees their own PHC. An ASHA only
-  sees her own rows plus tasks assigned to her.
-- The panel **reads** clinical data and **writes** workflow state: acknowledging and resolving
-  alerts, updating referral status and facility, and assigning visit tasks. It never edits
-  a patient's clinical record.
+- **Row Level Security (RLS):** Every query is scoped to the active PHC (`phc_id`).
+- **Live Queries:** Built on `useLiveQuery` with Supabase Realtime WebSockets — changes from mobile field visits appear instantly without page reload.
 
-## Quick start (demo mode)
+---
+
+## 🚀 Running Locally
 
 ```bash
 cd phc_admin
 npm install
-cp .env.example .env.local   # optional: defaults already point to mock mode
-npm run dev                  # http://localhost:5173
+
+# Run development server (http://localhost:5173)
+npm run dev
+
+# Type-check and build for production
+npm run build
 ```
 
-Sign in with the demo credentials shown on the login page (default
-`supervisor@phc.demo` / `demo1234`, configurable via `VITE_DUMMY_*`).
+### Environment Configuration (`.env.local`)
 
-| Script              | What it does                        |
-| ------------------- | ----------------------------------- |
-| `npm run dev`       | Vite dev server                     |
-| `npm run build`     | Type-check + production build → `dist/` |
-| `npm run preview`   | Serve the production build locally  |
-| `npm run typecheck` | TypeScript only                     |
+```env
+# Switch between live Supabase or in-memory mock demo
+VITE_BACKEND=supabase
 
-## Project layout
-
-```
-phc_admin/
-├── .env.example                 # all env vars, documented
-├── vercel.json                  # SPA rewrites + security headers
-├── supabase/migrations/
-│   └── 0001_init.sql            # shared schema, RLS, views, realtime (not applied yet)
-└── src/
-    ├── config/env.ts            # reads VITE_* vars, refuses to boot if misconfigured
-    ├── lib/supabase.ts          # lazy Supabase client (sessionStorage, not localStorage)
-    ├── auth/
-    │   ├── adapters.ts          # dummyAuth + supabaseAuth behind one interface
-    │   ├── AuthContext.tsx      # session state, useSession() = the ONE identity source
-    │   └── RequireAuth.tsx      # route guard
-    ├── backend/
-    │   ├── types.ts             # domain types (Session, Alert, Referral, VisitTask…)
-    │   ├── repository.ts        # PhcRepository interface — every read/write goes here
-    │   ├── mockRepository.ts    # in-memory implementation (demo mode)
-    │   ├── supabaseRepository.ts# real implementation against the SQL in supabase/
-    │   └── index.ts             # picks one based on VITE_BACKEND
-    ├── hooks/useLiveQuery.ts    # fetch + auto-refresh on realtime changes
-    ├── components/              # AppLayout (sidebar/drawer), UI primitives
-    └── pages/                   # Dashboard, Alerts, Referrals, Tasks, Workers, Households, Reports*, Settings
+# Your Supabase project credentials
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-\* Reports is a placeholder that lists the planned reports.
+### Database Migration
 
-**Rule of thumb:** pages never import Supabase. They call `repository.*` with
-`session.phcId`. When Supabase is connected, no page code changes.
+Ensure migration `0007_add_entry_source_to_vitals.sql` is executed in your Supabase SQL Editor:
 
-## Deploying to Vercel
-
-1. Push the repo to GitHub and import it in Vercel.
-2. **Root Directory:** `phc_admin`. Vercel detects Vite. Build = `npm run build`, output = `dist`.
-3. Environment variables (Project → Settings → Environment Variables):
-   - For a demo deploy: `VITE_BACKEND=mock` (and optionally `VITE_DUMMY_EMAIL` / `VITE_DUMMY_PASSWORD`).
-   - For real use: see the next section.
-4. Deploy. `vercel.json` already rewrites all routes to `index.html` (so `/alerts` etc. work on refresh).
-
-`VITE_*` vars are baked in at **build time**. After changing them, redeploy.
-
-## Connecting Supabase later
-
-1. **Create a project** at [supabase.com](https://supabase.com). Pick the Mumbai (ap-south-1) region for latency and data residency.
-2. **Apply the schema:** open SQL Editor, paste `supabase/migrations/0001_init.sql`, and run it.
-   (Or with the Supabase CLI: `supabase link` then `supabase db push`.)
-3. **Create your first PHC and admin:**
-   ```sql
-   insert into public.phcs (code, name, block, district, state)
-   values ('KA-BLR-HSK-01', 'PHC Hosakote', 'Hosakote', 'Bengaluru Rural', 'Karnataka')
-   returning id;   -- copy this id
-   ```
-   Then go to **Authentication → Users → Add user** (email + password, auto-confirm) and copy the user's UUID:
-   ```sql
-   insert into public.profiles (user_id, phc_id, role, full_name)
-   values ('<auth-user-uuid>', '<phc-id>', 'phc_admin', 'Dr. Your Name');
-   ```
-   ASHA workers are created the same way with `role = 'asha'` (phone OTP or email auth, whichever the app uses).
-4. **Set env vars** (`.env.local` locally, and in Vercel):
-   ```
-   VITE_BACKEND=supabase
-   VITE_SUPABASE_URL=https://<ref>.supabase.co
-   VITE_SUPABASE_ANON_KEY=<anon public key>
-   ```
-   Both values are under Project Settings → API. **Use only the `anon` key, never `service_role`.**
-5. **Auth settings:** in Authentication → URL Configuration, add your Vercel URL(s) to the redirect allow-list.
-   Turn off public sign-ups (Authentication → Providers → Email → "Allow new users to sign up") so that only
-   admin-created accounts exist.
-6. Redeploy. The demo banner and demo credentials disappear automatically in `supabase` mode.
-
-If `VITE_BACKEND=supabase` is set but the URL or key is missing, the app shows a configuration
-error page instead of falling back to demo data.
-
-## Connecting the Flutter ASHA app
-
-Nothing in `flutter_app` has been changed yet. Here is the plan for the app side.
-
-1. Add `supabase_flutter` to `pubspec.yaml`.
-2. Pass the keys at build time. Copy `flutter_app/dart_defines.example.json` to
-   `flutter_app/dart_defines.json` (gitignored), then build with:
-   ```bash
-   flutter run --dart-define-from-file=dart_defines.json
-   ```
-   ```dart
-   await Supabase.initialize(
-     url: const String.fromEnvironment('SUPABASE_URL'),
-     anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
-   );
-   ```
-3. **Keep SQLite as the source of truth on the device** (it's offline-first). Add a sync layer:
-   - **IDs:** add a `uuid TEXT` column to `families` / `members` / `medical_records` and generate
-     it on the device when a row is created. That uuid becomes the `id` in Supabase, so
-     re-uploading after a flaky connection never creates duplicates.
-   - **Push:** mark changed rows `dirty = 1`. When online, run
-     `supabase.from('households').upsert(rows, onConflict: 'id')` in batches, then clear `dirty`.
-     Every pushed row must include `phc_id` and `asha_id` (from the logged-in profile); RLS rejects anything else.
-   - **Pull:** store `last_pulled_at` per table, then
-     `supabase.from('visit_tasks').select().gt('updated_at', lastPulledAt)`. Do the same for
-     `alerts` and `referrals`, whose status the PHC may have changed. `updated_at` is maintained by
-     database triggers.
-   - **Deletes:** set `deleted_at` instead of deleting rows, so deletions sync too.
-   - **After a successful sync:** `update profiles set last_sync_at = now()` for the ASHA's own row.
-     This drives the "not synced in 3+ days" card on the dashboard.
-   - **Conflicts:** last write wins on `updated_at`. For alert and referral status, the server value wins.
-4. Table mapping (SQLite → Supabase): `families` → `households`, `members` → `members`,
-   `medical_records` → `vitals`. NEWS2 or sepsis results above your thresholds → insert into `alerts`.
-
-## Security notes
-
-- **Dummy login is not authentication.** The demo credentials are compiled into the JS bundle.
-  Demo mode must never be used with real patient data.
-- The Supabase **anon key is public by design**. What protects the data is RLS in
-  `0001_init.sql`: every policy is scoped by `phc_id` and role, and clients can't change their
-  own role or PHC.
-- Never put the `service_role` key in any `VITE_*` variable or in the Flutter app.
-- Sessions are stored in `sessionStorage`, so closing the browser signs the user out (PHC machines are often shared).
-  There is no service worker and no offline cache of patient data in the panel.
-- `vercel.json` sets `X-Frame-Options: DENY`, `nosniff`, a strict referrer policy and `no-store` on `index.html`.
-
-## Not done yet / next steps
-
-- Server-side pagination and search for households, since the current limit is 500 rows.
-- Reports, CSV/PDF export, and a village coverage map.
-- Adding and deactivating ASHA workers from the UI. This needs a Supabase Edge Function with the service role, not the browser.
-- i18n (Kannada / Hindi / Marathi UI).
-- Idle-timeout auto sign-out.
-- ESLint and tests.
+```sql
+ALTER TABLE public.vitals
+  ADD COLUMN IF NOT EXISTS entry_source text NOT NULL DEFAULT 'manual'
+  CHECK (entry_source IN ('manual', 'scan', 'cloud_sync'));
+```
